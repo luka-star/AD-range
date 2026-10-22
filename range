@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Runner for the GIFaway local A/D range (equivalent to the Makefile).
+# Usage: ./range <command>
+#   keys        Generate WireGuard keys + configs (once)
+#   core        Build + start everything EXCEPT the VPN players
+#   players     Start the two VPN player containers
+#   up          core + players (the whole range)
+#   doctor      Check connectivity at each layer
+#   logs        Follow all logs
+#   scoreboard  Open the scoreboard in your browser
+#   teams-json  Print current flag IDs (what attackers read)
+#   attack PLAYER TEAM EXPLOIT FLAGID   Run an exploit, e.g.:
+#                 ./range attack player1 2 exploit1_store1_sql_exp.py <flagid>
+#   down        Stop the range (keep data)
+#   clean       Stop the range and delete all volumes
+set -euo pipefail
+cd "$(dirname "$0")"
+C="docker compose"
+
+ensure_env()  { [ -f .env ] || { cp .env.example .env; echo "Created .env from .env.example - edit paths if needed"; }; }
+# Read GAMESERVER_SRC without `source`-ing .env (paths may contain spaces). Compose reads the rest of
+# .env itself for ${...} interpolation.
+load_env()    { GAMESERVER_SRC=$(grep -E '^[[:space:]]*GAMESERVER_SRC=' .env | tail -1 | cut -d= -f2- | sed 's/^"//;s/"$//'); export GAMESERVER_SRC; }
+ensure_keys() { [ -f wireguard/wg0.conf ] || ./scripts/gen-wg.sh; }
+
+# Copy your ctf-gameserver source into gameserver/_src so the image builds from one normal context
+# (no special Compose features needed). Re-synced on every build so your edits are picked up.
+sync_src() {
+  : "${GAMESERVER_SRC:?set GAMESERVER_SRC in .env}"
+  [ -d "$GAMESERVER_SRC" ] || { echo "GAMESERVER_SRC not found: $GAMESERVER_SRC"; exit 1; }
+  echo "[range] syncing gameserver source -> gameserver/_src"
+  mkdir -p gameserver/_src
+  rsync -a --delete \
+    --exclude '.git' \
+    --exclude '__pycache__' \
+    --exclude '*.egg-info' \
+    --exclude 'build' \
+    --exclude 'dist' \
+    --exclude 'docs_site' \
+    --exclude 'web/dev-db.sqlite3' \
+    --exclude 'src/ctf_gameserver/web/static/ext' \
+    "$GAMESERVER_SRC"/ gameserver/_src/
+}
+
+case "${1:-}" in
+  keys)        ensure_keys ;;
+  core)        ensure_env; load_env; ensure_keys; sync_src; $C up -d --build
+               echo "Core up. Scoreboard: http://localhost:8000/competition/scoreboard" ;;
+  players)     ensure_env; load_env; $C --profile players up -d --build ;;
+  up)          ensure_env; load_env; ensure_keys; sync_src
+               $C up -d --build
+               $C --profile players up -d --build
+               echo "Range up. Scoreboard: http://localhost:8000/competition/scoreboard" ;;
+  doctor)      ./scripts/doctor.sh ;;
+  logs)        $C logs -f ;;
+  scoreboard)  open http://localhost:8000/competition/scoreboard 2>/dev/null || echo "http://localhost:8000/competition/scoreboard" ;;
+  teams-json)  curl -s http://localhost:8000/competition/teams.json | python3 -m json.tool ;;
+  attack)      $C exec "${2:?player}" python3 "/exploits/${4:?exploit}" "10.60.${3:?team}.2" "${5:?flagid}" ;;
+  down)        $C --profile players down ;;
+  clean)       $C --profile players down -v ;;
+  *)           grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+esac

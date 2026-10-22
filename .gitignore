@@ -1,0 +1,13 @@
+# Machine-specific config + secrets. Copy .env.example -> .env locally instead.
+.env
+
+# Generated WireGuard keys and peer configs -- these contain PRIVATE KEYS.
+wireguard/
+
+# FAUST ctf-gameserver source, synced from GAMESERVER_SRC at build time (not ours to commit).
+gameserver/_src/
+
+# Python / editor / OS cruft
+__pycache__/
+*.py[cod]
+.DS_Store
