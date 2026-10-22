@@ -24,7 +24,7 @@ now = datetime.datetime.now(datetime.timezone.utc)
 gc = GameControl.get_instance()
 gc.competition_name = 'GIFaway Local Range'
 gc.services_public = now - datetime.timedelta(seconds=5)
-gc.start = now - datetime.timedelta(seconds=5)   # start immediately
+gc.start = now - datetime.timedelta(seconds=5)   
 gc.end = now + datetime.timedelta(hours=24)
 gc.tick_duration = TICK_DURATION
 gc.flag_prefix = FLAG_PREFIX

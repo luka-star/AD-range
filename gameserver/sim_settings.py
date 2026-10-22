@@ -1,19 +1,10 @@
-"""
-Django settings for the LOCAL RANGE simulation.
-Mirrors prod_settings.py but points at the sim Postgres and keeps things turnkey (DEBUG on so the
-dev server serves static files; permissive ALLOWED_HOSTS because we front it with the dev server).
-Do NOT use these settings for a real competition.
-"""
 import os
-
-# pylint: disable=wildcard-import, unused-wildcard-import
-from ctf_gameserver.web.base_settings import *   # noqa: F401,F403
-
+from ctf_gameserver.web.base_settings import *   
 
 DEBUG = True
 ALLOWED_HOSTS = ['*']
 
-SECRET_KEY = os.environ.get('CTF_WEB_SECRET_KEY', 'sim-only-not-secret')  # nosec
+SECRET_KEY = os.environ.get('CTF_WEB_SECRET_KEY', 'sim-only-not-secret')  
 
 DATABASES = {
     'default': {

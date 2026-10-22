@@ -64,8 +64,29 @@ case "${ROLE}" in
         # ctf-checkermaster reads every option from CTF_* env vars (ConfigArgParse).
         exec ctf-checkermaster
         ;;
+    web-prod)
+        wait_for_db
+        echo "[entrypoint] collecting static files ..."
+        django-admin collectstatic --no-input
+        echo "[entrypoint] starting gunicorn ..."
+        exec gunicorn --bind 0.0.0.0:8000 --workers 3 ctf_gameserver.web.wsgi:application
+        ;;
+    init-prod)
+        wait_for_db
+        echo "[entrypoint] generating + applying migrations ..."
+        django-admin makemigrations --no-input templatetags registration scoring flatpages vpnstatus
+        django-admin migrate --no-input
+        echo "[entrypoint] collecting static files ..."
+        django-admin collectstatic --no-input
+        echo "[entrypoint] ensuring admin superuser ..."
+        django-admin createsuperuser --no-input \
+            --username "${WEB_ADMIN_USER:-admin}" --email "admin@ctf.local" 2>/dev/null \
+            && echo "[entrypoint] created admin user" \
+            || echo "[entrypoint] admin user already exists, skipping"
+        echo "[entrypoint] init-prod complete (no auto-seed; configure the game in /admin)."
+        ;;
     *)
-        echo "Unknown role: '${ROLE}'. Use: init | web | controller | submission | checker" >&2
+        echo "Unknown role: '${ROLE}'. Use: init | init-prod | web | web-prod | controller | submission | checker" >&2
         exit 64
         ;;
 esac

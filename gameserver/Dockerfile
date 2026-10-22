@@ -26,7 +26,7 @@ RUN make ext || (echo "make ext failed (frontend assets) - continuing, scoreboar
 
 # Install the gameserver itself (provides ctf-controller, ctf-submission, ctf-checkermaster,
 # django-admin entry points) plus the runtime deps for Postgres and the GIFaway checkers.
-RUN pip install --no-cache-dir . psycopg2-binary \
+RUN pip install --no-cache-dir . psycopg2-binary gunicorn \
     && pip install --no-cache-dir requests types-requests result pillow pillow-avif-plugin
 
 # ---- get_flagid compatibility shim ----------------------------------------
@@ -40,6 +40,7 @@ RUN python3 /opt/apply_shim.py
 
 # Our sim Django settings + helper scripts.
 COPY sim_settings.py /opt/sim_settings.py
+COPY prod_settings.py /opt/prod_settings.py
 COPY seed.py /opt/seed.py
 COPY entrypoint.sh /opt/entrypoint.sh
 COPY checker-wrapper.sh /opt/checker-wrapper.sh

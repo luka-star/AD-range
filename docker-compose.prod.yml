@@ -1,0 +1,42 @@
+# Production overrides, layered on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Changes vs. the local range:
+#   - the `web` role is served by gunicorn (not Django's dev server) behind nginx
+#   - Django runs under prod_settings (DEBUG off, real SECRET_KEY + ALLOWED_HOSTS)
+#   - secrets come from .env (generate them with ./scripts/gen-secrets.sh)
+#
+# After it is up, configure the game by hand in /admin (there is no auto-seed).
+
+services:
+  gs-init:
+    command: ["init-prod"]
+    environment:
+      DJANGO_SETTINGS_MODULE: prod_settings
+      CTF_WEB_SECRET_KEY: ${CTF_WEB_SECRET_KEY:?set CTF_WEB_SECRET_KEY in .env (see gen-secrets.sh)}
+      CTF_ALLOWED_HOSTS: ${CTF_ALLOWED_HOSTS:?set CTF_ALLOWED_HOSTS in .env}
+      DJANGO_SUPERUSER_PASSWORD: ${WEB_ADMIN_PASSWORD:?set WEB_ADMIN_PASSWORD in .env}
+      WEB_ADMIN_USER: admin
+
+  web:
+    command: ["web-prod"]
+    environment:
+      DJANGO_SETTINGS_MODULE: prod_settings
+      CTF_WEB_SECRET_KEY: ${CTF_WEB_SECRET_KEY:?set CTF_WEB_SECRET_KEY in .env}
+      CTF_ALLOWED_HOSTS: ${CTF_ALLOWED_HOSTS:?set CTF_ALLOWED_HOSTS in .env}
+      CTF_HTTPS: ${CTF_HTTPS:-0}
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      web:
+        condition: service_started
+    volumes:
+      - "./gameserver/nginx.conf:/etc/nginx/nginx.conf:ro"
+      - gs-data:/data:ro
+    ports:
+      - "80:80"
+    networks:
+      infra:
+        ipv4_address: 10.60.0.20
