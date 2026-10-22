@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-# Generate WireGuard keypairs and render the gateway + player (+ optional laptop) configs.
-# Run once with `make keys`. Re-running regenerates all keys.
-#
-# Optional arg: your Mac's reachable IP for the laptop config's Endpoint (defaults to 127.0.0.1,
-# which works when you connect the macOS WireGuard app on the same machine).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 OUT=wireguard
 mkdir -p "$OUT"
 
-GW_WAN_IP=10.80.0.254            # gateway address on the "wan" transport network / published :51820
+GW_WAN_IP=10.80.0.254           
 LAPTOP_ENDPOINT="${1:-127.0.0.1}"
 
 echo "[gen-wg] generating keys ..."
@@ -20,7 +15,6 @@ gen_keys() {
       priv=$(wg genkey); pub=$(printf '%s' "$priv" | wg pubkey); echo "$n $priv $pub"
     done
   else
-    # No wg CLI on the host: borrow one from a throwaway Alpine container.
     docker run --rm alpine:3.20 sh -c '
       apk add --no-cache wireguard-tools >/dev/null 2>&1
       for n in gw p1 p2 laptop; do
