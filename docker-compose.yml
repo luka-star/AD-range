@@ -321,40 +321,6 @@ services:
     networks:
       nopdb: {}
 
-  # ---- VPN players (competitor laptops) ---------------------------------------------------------
-  player1:
-    build: ./player
-    image: gifaway-range/player
-    hostname: player1
-    profiles: ["players"]
-    cap_add: ["NET_ADMIN"]
-    devices:
-      - /dev/net/tun
-    volumes:
-      - "./wireguard/player1.conf:/etc/wireguard/wg0.conf:ro"
-      - "${EXPLOITS_DIR}:/exploits:ro"
-    depends_on:
-      - gateway
-    networks:
-      wan:
-        ipv4_address: 10.80.0.11
-  player2:
-    build: ./player
-    image: gifaway-range/player
-    hostname: player2
-    profiles: ["players"]
-    cap_add: ["NET_ADMIN"]
-    devices:
-      - /dev/net/tun
-    volumes:
-      - "./wireguard/player2.conf:/etc/wireguard/wg0.conf:ro"
-      - "${EXPLOITS_DIR}:/exploits:ro"
-    depends_on:
-      - gateway
-    networks:
-      wan:
-        ipv4_address: 10.80.0.12
-
 volumes:
   gs-pg-data:
   gs-data:
