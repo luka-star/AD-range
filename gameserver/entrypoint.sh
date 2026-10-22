@@ -1,16 +1,8 @@
 #!/bin/sh
-# Role dispatcher for the gameserver image. First arg = role.
-#   init        -> run DB migrations, create admin user, seed the game (then exit)
-#   web         -> Django dev server on :8000 (scoreboard, /admin, teams.json)
-#   controller  -> ctf-controller (the clock)
-#   submission  -> ctf-submission (flag submission TCP server)
-#   checker     -> ctf-checkermaster for one service
 set -eu
 
 ROLE="${1:-}"
 
-# Point the default route at the range gateway so this component can reach the team networks
-# (vulnboxes) and the VPN players through it. On-subnet infra traffic (e.g. Postgres) is unaffected.
 if [ -n "${GATEWAY_IP:-}" ]; then
     ip route replace default via "${GATEWAY_IP}" 2>/dev/null \
         && echo "[entrypoint] default route via ${GATEWAY_IP}" \
@@ -31,13 +23,11 @@ wait_for_db() {
 case "${ROLE}" in
     init)
         wait_for_db
-        # ctf-gameserver ships no migration files on purpose, so generate them first (as `make dev` does).
         echo "[entrypoint] generating migrations ..."
         django-admin makemigrations --no-input templatetags registration scoring flatpages vpnstatus
         echo "[entrypoint] applying migrations ..."
         django-admin migrate --no-input
         echo "[entrypoint] ensuring admin superuser ..."
-        # DJANGO_SUPERUSER_PASSWORD is read by createsuperuser --no-input
         django-admin createsuperuser --no-input \
             --username "${WEB_ADMIN_USER:-admin}" \
             --email "admin@range.local" 2>/dev/null \
@@ -61,7 +51,6 @@ case "${ROLE}" in
         ;;
     checker)
         wait_for_db
-        # ctf-checkermaster reads every option from CTF_* env vars (ConfigArgParse).
         exec ctf-checkermaster
         ;;
     web-prod)

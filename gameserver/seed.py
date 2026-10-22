@@ -5,22 +5,20 @@ and three teams (two players + one NOP). Idempotent: safe to run more than once.
 """
 import os
 import datetime
-
 import django
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sim_settings')
 django.setup()
 
-from django.contrib.auth.models import User               # noqa: E402
-from ctf_gameserver.web.scoring.models import GameControl, Service  # noqa: E402
-from ctf_gameserver.web.registration.models import Team    # noqa: E402
+from django.contrib.auth.models import User               
+from ctf_gameserver.web.scoring.models import GameControl, Service  
+from ctf_gameserver.web.registration.models import Team    
 
 TICK_DURATION = int(os.environ.get('SIM_TICK_DURATION', '60'))
 FLAG_PREFIX = os.environ.get('SIM_FLAG_PREFIX', 'FLAG_')
 
 now = datetime.datetime.now(datetime.timezone.utc)
 
-# --- Game control -----------------------------------------------------------
 gc = GameControl.get_instance()
 gc.competition_name = 'GIFaway Local Range'
 gc.services_public = now - datetime.timedelta(seconds=5)
