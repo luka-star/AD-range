@@ -37,6 +37,4 @@ services:
       - gs-data:/data:ro
     ports:
       - "80:80"
-    networks:
-      infra:
-        ipv4_address: 10.60.0.20
+    networks: [infra]
