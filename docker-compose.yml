@@ -130,7 +130,7 @@ services:
     command: ["checker"]
     environment:
       <<: *gs-db-env
-      CTF_SERVICE: gifaway_checker1
+      CTF_SERVICE: fakebook_checker1
       CTF_CHECKERSCRIPT: /opt/checker-wrapper.sh
       CHECKER_DIR: /checkers/checker1
       CTF_CHECKERCOUNT: "1"
@@ -154,7 +154,7 @@ services:
     command: ["checker"]
     environment:
       <<: *gs-db-env
-      CTF_SERVICE: gifaway_checker2
+      CTF_SERVICE: fakebook_checker2
       CTF_CHECKERSCRIPT: /opt/checker-wrapper.sh
       CHECKER_DIR: /checkers/checker2
       CTF_CHECKERCOUNT: "1"

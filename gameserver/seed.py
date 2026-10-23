@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Seed the sim database with a ready-to-play game: game control window, the two GIFaway services,
+Seed the sim database with a ready-to-play game: game control window, the two FakeBook services,
 and three teams (two players + one NOP). Idempotent: safe to run more than once.
 """
 import os
@@ -20,7 +20,7 @@ FLAG_PREFIX = os.environ.get('SIM_FLAG_PREFIX', 'FLAG_')
 now = datetime.datetime.now(datetime.timezone.utc)
 
 gc = GameControl.get_instance()
-gc.competition_name = 'GIFaway Local Range'
+gc.competition_name = 'FakeBook Local Range'
 gc.services_public = now - datetime.timedelta(seconds=5)
 gc.start = now - datetime.timedelta(seconds=5)   
 gc.end = now + datetime.timedelta(hours=24)
@@ -35,8 +35,8 @@ gc.save()
 print(f'[seed] GameControl: tick={TICK_DURATION}s prefix={FLAG_PREFIX} start={gc.start} end={gc.end}')
 
 # --- Services (one per checker, matching the course template slugs) ---------
-for name, slug in [('GIFaway (Store 1)', 'gifaway_checker1'),
-                   ('GIFaway (Store 2)', 'gifaway_checker2')]:
+for name, slug in [('FakeBook (Store 1)', 'fakebook_checker1'),
+                   ('FakeBook (Store 2)', 'fakebook_checker2')]:
     svc, created = Service.objects.get_or_create(
         slug=slug, defaults={'name': name, 'num_flagstores': 1, 'margin': 30})
     print(f'[seed] Service {slug}: {"created" if created else "exists"}')
