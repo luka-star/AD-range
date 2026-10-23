@@ -1,17 +1,15 @@
-name: gifaway-range
+name: ad-range
 
 # =================================================================================================
-#  Local attack/defense range for GIFaway.
+#  Gameserver infrastructure for the VM-based deployment.
 #
-#  Networks (mirrors a real competition):
-#    wan    10.80.0.0/24   "internet": where players reach the gateway's WireGuard endpoint
-#    infra  10.60.0.0/24   gameserver components + database (teams must not reach the DB)
-#    teamN  10.60.N.0/24   one per team; the vulnbox lives at 10.60.N.2
-#    teamNdb               isolated DB network for each vulnbox's own Postgres (not reachable by checkers)
+#  Runs ONLY the gameserver itself (DB, web, controller, submission, two checkers) on the `gs` VM.
+#  The vulnboxes are separate VMs, each running FakeBook's own dist/docker-compose.yaml, reachable
+#  at 10.60.1.2 / 10.60.2.2 on the host-only game network. The checkers reach them over that
+#  network through the VM's own routing (CTF_IPPATTERN -> 10.60.N.2).
 #
-#  Players connect over WireGuard and get 10.66.N.100, so the submission server identifies them by
-#  source IP (CTF_TEAMREGEX). Checker traffic is NAT'd by the gateway so vulnboxes can't distinguish
-#  it from team traffic (CTF_IPPATTERN -> 10.60.N.2).
+#  Docker's internal network uses 172.20.0.0/24 so it does NOT clash with the host-only
+#  10.60.0.0/16 game network the gs VM sits on. Services find each other by name (Docker DNS).
 # =================================================================================================
 
 x-gs-build: &gs-build
@@ -24,12 +22,6 @@ x-gs-db-env: &gs-db-env
   CTF_DBUSER: ctf
   CTF_DBPASSWORD: ctf
   CTF_LOGLEVEL: INFO
-
-x-gifaway-env: &gifaway-env
-  PRODUCTION: "true"
-  STORAGE_DIR: /var/lib/gifaway
-  JWT_ISSUER: GIFaway
-  JWT_AUDIENCE: generic_user
 
 services:
   # ---- Gameserver database ----------------------------------------------------------------------
@@ -46,14 +38,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    networks:
-      infra:
-        ipv4_address: 10.60.0.5
+    networks: [infra]
 
-  # ---- One-shot: migrate schema, create admin, seed game, teams, services -----------------------
+  # ---- One-shot: migrate schema, create admin, seed game/teams/services --------------------------
   gs-init:
     build: *gs-build
-    image: gifaway-range/gameserver
+    image: ad-range/gameserver
     command: ["init"]
     environment:
       <<: *gs-db-env
@@ -66,67 +56,54 @@ services:
     depends_on:
       gs-postgres:
         condition: service_healthy
-    networks:
-      infra: {}
+    networks: [infra]
 
   # ---- Web: scoreboard, /admin, teams.json ------------------------------------------------------
   web:
-    image: gifaway-range/gameserver
+    image: ad-range/gameserver
     command: ["web"]
     environment:
       <<: *gs-db-env
       CTF_WEB_SECRET_KEY: sim-only-not-secret
-      GATEWAY_IP: 10.60.0.254
     volumes:
       - gs-data:/data
-    cap_add: ["NET_ADMIN"]
     ports:
       - "8000:8000"
     depends_on:
       gs-init:
         condition: service_completed_successfully
-    networks:
-      infra:
-        ipv4_address: 10.60.0.10
+    networks: [infra]
 
   # ---- Controller: the clock --------------------------------------------------------------------
   controller:
-    image: gifaway-range/gameserver
+    image: ad-range/gameserver
     command: ["controller"]
     environment:
       <<: *gs-db-env
-      GATEWAY_IP: 10.60.0.254
-    cap_add: ["NET_ADMIN"]
     depends_on:
       gs-init:
         condition: service_completed_successfully
-    networks:
-      infra:
-        ipv4_address: 10.60.0.11
+    networks: [infra]
 
   # ---- Submission: flag submission TCP server ---------------------------------------------------
   submission:
-    image: gifaway-range/gameserver
+    image: ad-range/gameserver
     command: ["submission"]
     environment:
       <<: *gs-db-env
       CTF_LISTEN: 0.0.0.0:6666
       CTF_FLAGSECRET: ${CTF_FLAGSECRET}
       CTF_TEAMREGEX: '^10\.66\.(\d+)\.\d+$$'
-      GATEWAY_IP: 10.60.0.254
-    cap_add: ["NET_ADMIN"]
     ports:
       - "6666:6666"
     depends_on:
       gs-init:
         condition: service_completed_successfully
-    networks:
-      infra:
-        ipv4_address: 10.60.0.12
+    networks: [infra]
 
-  # ---- Checker master for GIFaway store 1 -------------------------------------------------------
+  # ---- Checker master for FakeBook store 1 ------------------------------------------------------
   checker1:
-    image: gifaway-range/gameserver
+    image: ad-range/gameserver
     command: ["checker"]
     environment:
       <<: *gs-db-env
@@ -137,20 +114,16 @@ services:
       CTF_INTERVAL: "15"
       CTF_IPPATTERN: "10.60.%s.2"
       CTF_FLAGSECRET: ${CTF_FLAGSECRET}
-      GATEWAY_IP: 10.60.0.254
-    cap_add: ["NET_ADMIN"]
     volumes:
       - "${CHECKERS_DIR}:/checkers:ro"
     depends_on:
       gs-init:
         condition: service_completed_successfully
-    networks:
-      infra:
-        ipv4_address: 10.60.0.13
+    networks: [infra]
 
-  # ---- Checker master for GIFaway store 2 -------------------------------------------------------
+  # ---- Checker master for FakeBook store 2 ------------------------------------------------------
   checker2:
-    image: gifaway-range/gameserver
+    image: ad-range/gameserver
     command: ["checker"]
     environment:
       <<: *gs-db-env
@@ -161,195 +134,18 @@ services:
       CTF_INTERVAL: "15"
       CTF_IPPATTERN: "10.60.%s.2"
       CTF_FLAGSECRET: ${CTF_FLAGSECRET}
-      GATEWAY_IP: 10.60.0.254
-    cap_add: ["NET_ADMIN"]
     volumes:
       - "${CHECKERS_DIR}:/checkers:ro"
     depends_on:
       gs-init:
         condition: service_completed_successfully
-    networks:
-      infra:
-        ipv4_address: 10.60.0.14
-
-  # ---- Gateway: WireGuard + router + NAT + firewall ---------------------------------------------
-  gateway:
-    build: ./gateway
-    image: gifaway-range/gateway
-    cap_add: ["NET_ADMIN"]
-    devices:
-      - /dev/net/tun
-    sysctls:
-      net.ipv4.ip_forward: "1"
-      net.ipv4.conf.all.src_valid_mark: "1"
-    environment:
-      GS_POSTGRES_IP: 10.60.0.5
-    volumes:
-      - "./wireguard/wg0.conf:/etc/wireguard/wg0.conf:ro"
-    ports:
-      - "51820:51820/udp"
-    networks:
-      wan:
-        ipv4_address: 10.80.0.254
-      infra:
-        ipv4_address: 10.60.0.254
-      team1:
-        ipv4_address: 10.60.1.254
-      team2:
-        ipv4_address: 10.60.2.254
-      nop:
-        ipv4_address: 10.60.99.254
-
-  # ---- Vulnboxes (one GIFaway instance per team) ------------------------------------------------
-  team1-backend:
-    build:
-      context: "${GIFAWAY_DIST}/backend"
-    environment:
-      <<: *gifaway-env
-      DATABASE_URL: "postgres://superuser:secret@team1-db:5432/vulndb"
-    read_only: true
-    user: "1000:1000"
-    security_opt: ["no-new-privileges:true"]
-    tmpfs: ["/tmp"]
-    volumes:
-      - team1-app:/var/lib/gifaway
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:10067/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    depends_on:
-      team1-db:
-        condition: service_healthy
-    networks:
-      team1:
-        ipv4_address: 10.60.1.2
-      team1db: {}
-  team1-db:
-    image: postgres:18
-    environment:
-      POSTGRES_USER: superuser
-      POSTGRES_DB: vulndb
-      POSTGRES_PASSWORD: secret
-    volumes:
-      - team1-pg:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U superuser -d vulndb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      team1db: {}
-
-  team2-backend:
-    build:
-      context: "${GIFAWAY_DIST}/backend"
-    environment:
-      <<: *gifaway-env
-      DATABASE_URL: "postgres://superuser:secret@team2-db:5432/vulndb"
-    read_only: true
-    user: "1000:1000"
-    security_opt: ["no-new-privileges:true"]
-    tmpfs: ["/tmp"]
-    volumes:
-      - team2-app:/var/lib/gifaway
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:10067/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    depends_on:
-      team2-db:
-        condition: service_healthy
-    networks:
-      team2:
-        ipv4_address: 10.60.2.2
-      team2db: {}
-  team2-db:
-    image: postgres:18
-    environment:
-      POSTGRES_USER: superuser
-      POSTGRES_DB: vulndb
-      POSTGRES_PASSWORD: secret
-    volumes:
-      - team2-pg:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U superuser -d vulndb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      team2db: {}
-
-  nop-backend:
-    build:
-      context: "${GIFAWAY_DIST}/backend"
-    environment:
-      <<: *gifaway-env
-      DATABASE_URL: "postgres://superuser:secret@nop-db:5432/vulndb"
-    read_only: true
-    user: "1000:1000"
-    security_opt: ["no-new-privileges:true"]
-    tmpfs: ["/tmp"]
-    volumes:
-      - nop-app:/var/lib/gifaway
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:10067/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    depends_on:
-      nop-db:
-        condition: service_healthy
-    networks:
-      nop:
-        ipv4_address: 10.60.99.2
-      nopdb: {}
-  nop-db:
-    image: postgres:18
-    environment:
-      POSTGRES_USER: superuser
-      POSTGRES_DB: vulndb
-      POSTGRES_PASSWORD: secret
-    volumes:
-      - nop-pg:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U superuser -d vulndb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      nopdb: {}
+    networks: [infra]
 
 volumes:
   gs-pg-data:
   gs-data:
-  team1-app:
-  team1-pg:
-  team2-app:
-  team2-pg:
-  nop-app:
-  nop-pg:
 
 networks:
-  wan:
-    ipam:
-      config: [{ subnet: 10.80.0.0/24 }]
   infra:
     ipam:
-      config: [{ subnet: 10.60.0.0/24 }]
-  team1:
-    ipam:
-      config: [{ subnet: 10.60.1.0/24 }]
-  team2:
-    ipam:
-      config: [{ subnet: 10.60.2.0/24 }]
-  nop:
-    ipam:
-      config: [{ subnet: 10.60.99.0/24 }]
-  team1db:
-    internal: true
-  team2db:
-    internal: true
-  nopdb:
-    internal: true
+      config: [{ subnet: 172.20.0.0/24 }]
