@@ -36,3 +36,13 @@ DEFAULT_FROM_EMAIL = os.environ.get('CTF_FROM_EMAIL', 'ctf@localhost')
 
 TIME_ZONE = os.environ.get('CTF_TIMEZONE', 'UTC')
 FIRST_DAY_OF_WEEK = 1
+# Content-Security-Policy headers (read by ctf_gameserver.web.middleware on every request).
+# Not provided by base_settings, so prod must define it explicitly (same values as sim).
+CSP_POLICIES = {
+    'base-uri': ["'self'"],
+    'connect-src': ["'self'"],
+    'form-action': ["'self'"],
+    'object-src': ["'self'"],
+    'script-src': ["'self'", "'unsafe-inline'"],
+    'style-src': ["'self'", "'unsafe-inline'"],
+}
