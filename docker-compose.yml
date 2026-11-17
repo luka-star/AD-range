@@ -93,7 +93,7 @@ services:
       <<: *gs-db-env
       CTF_LISTEN: 0.0.0.0:6666
       CTF_FLAGSECRET: ${CTF_FLAGSECRET}
-      CTF_TEAMREGEX: '^10\.66\.(\d+)\.\d+$$'
+      CTF_TEAMREGEX: '^10\.60\.(\d+)\.\d+$$'
     ports:
       - "6666:6666"
     depends_on:

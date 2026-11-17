@@ -1,8 +1,4 @@
-#!/usr/bin/env python3
-"""
-Seed the sim database with a ready-to-play game: game control window, the two FakeBook services,
-and three teams (two players + one NOP). Idempotent: safe to run more than once.
-"""
+
 import os
 import datetime
 import django
@@ -10,9 +6,9 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sim_settings')
 django.setup()
 
-from django.contrib.auth.models import User               
-from ctf_gameserver.web.scoring.models import GameControl, Service  
-from ctf_gameserver.web.registration.models import Team    
+from django.contrib.auth.models import User               # noqa: E402
+from ctf_gameserver.web.scoring.models import GameControl, Service  # noqa: E402
+from ctf_gameserver.web.registration.models import Team    # noqa: E402
 
 TICK_DURATION = int(os.environ.get('SIM_TICK_DURATION', '60'))
 FLAG_PREFIX = os.environ.get('SIM_FLAG_PREFIX', 'FLAG_')
@@ -20,9 +16,9 @@ FLAG_PREFIX = os.environ.get('SIM_FLAG_PREFIX', 'FLAG_')
 now = datetime.datetime.now(datetime.timezone.utc)
 
 gc = GameControl.get_instance()
-gc.competition_name = 'FakeBook Local Range'
+gc.competition_name = 'FakeBook Range'
 gc.services_public = now - datetime.timedelta(seconds=5)
-gc.start = now - datetime.timedelta(seconds=5)   
+gc.start = now - datetime.timedelta(seconds=5)
 gc.end = now + datetime.timedelta(hours=24)
 gc.tick_duration = TICK_DURATION
 gc.flag_prefix = FLAG_PREFIX
@@ -60,7 +56,6 @@ def make_team(username, net_number, nop=False, password='ctf'):
     print(f'[seed] Team {username}: net_number={net_number} nop={nop} (login {username}/{password})')
 
 make_team('team1', 1)
-make_team('team2', 2)
 make_team('nop', 99, nop=True)
 
 print('[seed] done.')
